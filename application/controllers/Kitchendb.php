@@ -178,7 +178,6 @@ class Kitchendb extends CI_Controller {
                     $crud->set_theme('datatables');
                     $crud->set_table('batch');
                     
-                    $crud->set_relation('batch_recipeID', 'recipes', 'recipeName');
                     $crud->columns('batch_batchCode', 'batch_recipeID','batch_cookDate','batch_quantity');
                     $crud->add_fields('batch_recipeID','batch_cookDate','batch_quantity');
                     $crud->edit_fields('batch_recipeID', 'batch_batchCode', 'batch_cookDate','batch_quantity');
@@ -196,7 +195,16 @@ class Kitchendb extends CI_Controller {
                     $crud->callback_after_insert(array($this, '_add_stock_transaction_callback'));
                     $crud->callback_after_delete(array($this, '_delete_batch_callback'));
                     $crud->callback_after_update(array($this, '_update_batch_callback'));
-
+                    
+                    $state = $crud->getState();
+                    // if adding a new batch, customise the recipe dropdown to include the quantity created
+                    // need to remove relation on this field to make sure custom dropdown works
+                    if ($state == 'add') {
+                        $stateinfo = $crud->getStateInfo();
+                        $recipesArray = $this->get_recipe_details();
+                        $crud->field_type('batch_recipeID','dropdown',$recipesArray);
+                    }
+                    
                     $output = $crud->render();
                     $this->_example_output($output);
                     
@@ -205,6 +213,21 @@ class Kitchendb extends CI_Controller {
             }
      }
 
+    public function get_recipe_details()
+	{
+        $query = $this->db->query("select id, recipeName, recipes_outputQuantity, recipes_outputUOM from recipes");
+        $myarray = array();
+        foreach ($query->result() as $row) {
+            $myarray[$row->id] = $row->recipeName." (".$row->recipes_outputQuantity . " " . $row->recipes_outputUOM ." per batch)";
+        }
+        
+        if(empty($myarray)) {
+            $myarray = array("0" =>"Error - no recipes in database");
+        }
+        //var_dump($myarray);
+        return $myarray;
+	}
+     
      // callback after insert for the batch function
      function _add_stock_transaction_callback($post_array, $primary_key) {
 
@@ -232,7 +255,7 @@ class Kitchendb extends CI_Controller {
                 $ingredientID = $row->ingredientID;
                 $qty = $batchQty * $row->quantity;
                 $uom = $row->recipeUnits;
-                $queryStr = "INSERT into stockTrans (stockTrans_ingredientID, stockTrans_batchID, stockTrans_type, stockTrans_quantity, stockTrans_quantityUOM) VALUES ($ingredientID, $primary_key, 'Used', $qty, $uom)";
+                $queryStr = "INSERT into stockTrans (stockTrans_ingredientID, stockTrans_batchID, stockTrans_type, stockTrans_quantity, stockTrans_quantityUOM) VALUES ($ingredientID, $primary_key, 'Used', $qty, '$uom')";
                 $this->db->query($queryStr);
             }
             
@@ -284,7 +307,7 @@ class Kitchendb extends CI_Controller {
     {
             try{
                     $crud = new grocery_CRUD();
-                    $crud->set_theme('datatables');
+                    //$crud->set_theme('datatables');
                     $crud->set_table('recipeItems');
                     $crud->where('recipeID',$row);
                     $crud->set_relation('ingredientID','ingredients', 'ingredientName');
@@ -310,7 +333,7 @@ class Kitchendb extends CI_Controller {
     {
             try{
                     $crud = new grocery_CRUD();
-                    $crud->set_theme('datatables');
+                    //$crud->set_theme('datatables');
                     
                     $crud->set_model('Edit_batch_model2');
                     
@@ -328,7 +351,7 @@ class Kitchendb extends CI_Controller {
                     $crud->callback_column('Ingredient Batch', array($this, '_callback_ingredientbatch_column'));
                     
                     $state = $crud->getState();
-                    // if editing the 
+                    // if editing, customise the stockTrans_subBatchID dropdown
                     if ($state == 'edit') {
                         $stateinfo = $crud->getStateInfo();
                         $stockTransID = $stateinfo->primary_key;
@@ -417,7 +440,7 @@ class Kitchendb extends CI_Controller {
             try{
                     $crud = new grocery_CRUD();
                     
-                    $crud->set_theme('datatables');
+                    //$crud->set_theme('datatables');
                     $crud->set_table('tempRecords');
                     
                     $crud->set_relation('tempRecords_batchid', 'batch', 'batch_batchCode');

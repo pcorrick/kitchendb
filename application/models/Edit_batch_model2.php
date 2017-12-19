@@ -87,4 +87,5 @@ class Edit_batch_model2 extends grocery_CRUD_Model
         
         return $myarray;
 	}
+    
 }
