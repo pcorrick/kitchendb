@@ -7,6 +7,15 @@ class Kitchendb extends CI_Controller {
 	{
 		parent::__construct();
 
+        
+        $this->load->add_package_path(APPPATH.'third_party/ion_auth/');
+        $this->load->library('ion_auth');
+        
+        if (!$this->ion_auth->logged_in()) {
+            //redirect them to the login page
+            redirect('admin/user/login', 'refresh');
+        }
+        
 		$this->load->database();
 		$this->load->helper('url');
 
@@ -15,7 +24,9 @@ class Kitchendb extends CI_Controller {
 
 	public function _example_output($output = null)
 	{
+        $this->load->view('templates/header');
 		$this->load->view('kitchendb.php',(array)$output);
+        $this->load->view('templates/footer');
 	}
 
 	public function index()
@@ -61,6 +72,7 @@ class Kitchendb extends CI_Controller {
                 $crud->display_as('stockTrans_ingredientID','Ingredient');
                 $crud->display_as('stockTrans_quantity','Quantity');
                 $crud->display_as('stockTrans_batchID', 'Batch Code');
+                $crud->display_as('stockTrans_quantityUOM', 'Units');
                 
                 $crud->required_fields('stockTrans_ingredientID','stockTrans_quantity', 'stockTrans_quantityUOM');
                 
@@ -220,7 +232,7 @@ class Kitchendb extends CI_Controller {
                     $crud->display_as('batch_cookDate','Date Made');
                     $crud->display_as('batch_quantity','Batch Quantity');
                     
-                    $crud->field_type('batch_planned', 'true_false', array('False', 'True'));
+                    $crud->field_type('batch_planned', 'true_false', array('Created', 'Planned'));
                     $crud->field_type('batch_batchCode', 'hidden');
 
                     $crud->required_fields('batch_recipeID', 'batch_quantity', 'batch_cookDate','batch_planned');
