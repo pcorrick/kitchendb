@@ -110,7 +110,7 @@ class Kitchendb extends CI_Controller {
     public function formatUOM($arrayUOM) {
         $arrayUOM['kg'] = $arrayUOM['kg'] + ($arrayUOM['g']/1000);
         $arrayUOM['g'] = $arrayUOM['kg'] * 1000;
-        if($arrayUOM['kg'] < 1){
+        if($arrayUOM['kg'] < 1 && $arrayUOM['kg'] > -1){
             return round($arrayUOM['g'],3).' g';
         } else {
             return round($arrayUOM['kg'],3).' kg';
