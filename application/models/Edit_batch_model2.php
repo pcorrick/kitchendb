@@ -40,9 +40,9 @@ class Edit_batch_model2 extends grocery_CRUD_Model
 	return $results;
     }
     
+    // get 
     public function get_current_stock($ingredientid, $batchid)
     {
-        $table = 'stockTrans';
         
         $query = $this->db->query("select stockTrans_quantity as stock from stockTrans where stockTrans_ingredientID = $ingredientid and stockTrans_type = 'Created' and stockTrans_batchID = $batchid");
         $row = $query->row();
@@ -59,10 +59,12 @@ class Edit_batch_model2 extends grocery_CRUD_Model
         return $created - $used;
     }
     
-    public function get_stock_array($batchid, $stockTransID)
+    // get all stock of ingredient referenced in the stockTrans row
+    // return array of {batchID, stock quantity}
+    public function get_stock_array($stockTransID)
 	{
         $table = 'stockTrans';
-        
+
         // find ingredientID that we are editing
         $query = $this->db->query("select stockTrans_ingredientID from stockTrans where stockTrans_ID = $stockTransID");
         $ingredientid = $query->row()->stockTrans_ingredientID;
@@ -77,8 +79,12 @@ class Edit_batch_model2 extends grocery_CRUD_Model
         $myarray = array();
         foreach ($result->result() as $stockrow)
         {
-            $currentStock = $this->get_current_stock($ingredientid, $stockrow->stockTrans_batchID);
-            $myarray[$stockrow->batch_ID] = "Stock (".$currentStock.") Batch Code: ".$stockrow->batch_batchCode." - ".$stockrow->ingredientName;
+            if(is_null($stockrow->stockTrans_batchID)) {
+                $myarray = array("0" =>"Error - missing batchid in ingredient");
+            } else {
+                $currentStock = $this->get_current_stock($ingredientid, $stockrow->stockTrans_batchID);
+                $myarray[$stockrow->batch_ID] = "Stock (".$currentStock.") Batch Code: ".$stockrow->batch_batchCode." - ".$stockrow->ingredientName;
+            }
         }
         
         if(empty($myarray)) {

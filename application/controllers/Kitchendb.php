@@ -459,7 +459,7 @@ class Kitchendb extends CI_Controller {
                     if ($state == 'edit') {
                         $stateinfo = $crud->getStateInfo();
                         $stockTransID = $stateinfo->primary_key;
-                        $stockArray = $this->Edit_batch_model2->get_stock_array($row, $stockTransID);
+                        $stockArray = $this->Edit_batch_model2->get_stock_array($stockTransID);
                         $crud->field_type('stockTrans_subBatchID','dropdown',$stockArray);
                     }
                     $output = $crud->render();
