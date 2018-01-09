@@ -49,7 +49,7 @@ class Kitchendb extends CI_Controller {
                         show_error($e->getMessage().' --- '.$e->getTraceAsString());
                 }
          }
-    
+
     public function stock()
     {
         try{
