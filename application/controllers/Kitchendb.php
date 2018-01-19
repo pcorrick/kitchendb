@@ -55,11 +55,10 @@ class Kitchendb extends CI_Controller {
         try{
                 $crud = new grocery_CRUD();
                 $crud->set_theme('flexigrid');
-                $crud->set_model('Stock_model');
+                //$crud->set_model('Stock_model');
                 $crud->set_table('stockTrans');
                 $crud->set_subject('Stock');
                 
-                $crud->set_relation('stockTrans_ingredientID', 'ingredients', 'ingredientName');
                 $crud->set_relation('stockTrans_batchID', 'batch', 'batch_batchCode');
                 
                 $where = "stockTrans_type = 'Created' OR stockTrans_type = 'Planned_Created' group by stockTrans_batchID, stockTrans_ingredientID, stockTrans_type";
@@ -78,12 +77,25 @@ class Kitchendb extends CI_Controller {
                 
                 $crud->columns('stockTrans_ingredientID','stockTrans_batchID', 'Created','Used', 'Current Stock', 'Planned Created', 'Planned Used', 'Stock After Plan');
                 
+                //$crud->callback_column('stockTrans_ingredientID', array($this, '_callback_ingredient_column'));
                 $crud->callback_column('Created', array($this, '_callback_created_column'));
                 $crud->callback_column('Used', array($this, '_callback_used_column'));
                 $crud->callback_column('Current Stock', array($this, '_callback_stock_column'));
                 $crud->callback_column('Planned Created', array($this, '_callback_plannedcreated_column'));
                 $crud->callback_column('Planned Used', array($this, '_callback_plannedused_column'));
                 $crud->callback_column('Stock After Plan', array($this, '_callback_stockafterplan_column'));
+
+                //relation on ingredient ID mucks up the dropdown to exclude batch ingredients in 'add stock' screen
+                $crud->set_relation('stockTrans_ingredientID', 'ingredients', 'ingredientName');
+                
+                $state = $crud->getState();
+                // if adding stock, customise the ingredients dropdown to exclude ingredients that should
+                // be created by adding a new batch
+                if ($state == 'add') {
+                    $stateinfo = $crud->getStateInfo();
+                    $ingredientsArray = $this->get_raw_ingredients_only();
+                    $crud->field_type('stockTrans_ingredientID','dropdown',$ingredientsArray);
+                }
                 
                 $output = $crud->render();
                 $this->_example_output($output);
@@ -91,6 +103,31 @@ class Kitchendb extends CI_Controller {
                 show_error($e->getMessage().' --- '.$e->getTraceAsString());
         }
      }
+    
+    
+    // BUG: need to change database column names for ingredients.id to ingredients.ingredients_id (to prevent conflict with recipes.id)
+    public function get_raw_ingredients_only()
+	{
+        $query = $this->db->query("SELECT ingredients.id, ingredientName FROM ingredients left outer join recipes on recipes.recipes_ingredientID = ingredients.id where recipes.id is null");
+        $myarray = array();
+        foreach ($query->result() as $row) {
+            $myarray[$row->id] = $row->ingredientName;
+        }
+        
+        if(empty($myarray)) {
+            $myarray = array("0" =>"Error - no raw ingredients in database");
+        }
+
+        return $myarray;
+	}
+    
+    public function _callback_ingredient_column($stockTransID, $row)
+    {
+        $ingredientID = $row->stockTrans_ingredientID;
+        $query = $this->db->query("select ingredientName from ingredients where id='$ingredientID'");
+        $result = $query->row();
+        return $result->ingredientName;
+    }
      
     public function _callback_stock_column($stockTransID, $row)
     {
@@ -108,6 +145,14 @@ class Kitchendb extends CI_Controller {
     }
      
     public function formatUOM($arrayUOM) {
+        if($arrayUOM['g'] == 0 && $arrayUOM['kg'] == 0 && $arrayUOM['pieces'] == 0) {
+            return '0';
+        }
+        
+        if($arrayUOM['pieces'] > 0) {
+            return $arrayUOM['pieces'].' pieces';
+        }
+        
         $arrayUOM['kg'] = $arrayUOM['kg'] + ($arrayUOM['g']/1000);
         $arrayUOM['g'] = $arrayUOM['kg'] * 1000;
         if($arrayUOM['kg'] < 1 && $arrayUOM['kg'] > -1){
@@ -120,7 +165,7 @@ class Kitchendb extends CI_Controller {
     public function getQtyArray($query) {
         
         $queryrow = $query->row();
-        $arrayUOM = array('g'=>0, 'kg'=>0);
+        $arrayUOM = array('g'=>0, 'kg'=>0, 'pieces'=>0);
         if(isset($queryrow)) {
             foreach($query->result() as $stockrow) {
                 $arrayUOM[$stockrow->qtyUOM] = (float)$stockrow->stock;
