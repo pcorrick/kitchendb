@@ -75,9 +75,12 @@ class Kitchendb extends CI_Controller {
                 
                 $crud->required_fields('stockTrans_ingredientID','stockTrans_quantity', 'stockTrans_quantityUOM');
                 
-                $crud->columns('stockTrans_ingredientID','stockTrans_batchID', 'Created','Used', 'Current Stock', 'Planned Created', 'Planned Used', 'Stock After Plan');
+                $crud->columns('IID','stockTrans_ingredientID','stockTrans_batchID', 'Created','Used', 'Current Stock', 'Planned Created', 'Planned Used', 'Stock After Plan');
                 
-                //$crud->callback_column('stockTrans_ingredientID', array($this, '_callback_ingredient_column'));
+                //$crud->field_type('IID', 'hidden');
+                
+                $crud->callback_column('IID', array($this, '_callback_IID_column'));
+                $crud->callback_column('stockTrans_ingredientID', array($this, '_callback_ingredient_column'));
                 $crud->callback_column('Created', array($this, '_callback_created_column'));
                 $crud->callback_column('Used', array($this, '_callback_used_column'));
                 $crud->callback_column('Current Stock', array($this, '_callback_stock_column'));
@@ -85,17 +88,17 @@ class Kitchendb extends CI_Controller {
                 $crud->callback_column('Planned Used', array($this, '_callback_plannedused_column'));
                 $crud->callback_column('Stock After Plan', array($this, '_callback_stockafterplan_column'));
 
-                //relation on ingredient ID mucks up the dropdown to exclude batch ingredients in 'add stock' screen
-                $crud->set_relation('stockTrans_ingredientID', 'ingredients', 'ingredientName');
-                
                 $state = $crud->getState();
                 // if adding stock, customise the ingredients dropdown to exclude ingredients that should
                 // be created by adding a new batch
-                if ($state == 'add') {
+                if ($state == 'add' || $state == 'edit') {
                     $stateinfo = $crud->getStateInfo();
                     $ingredientsArray = $this->get_raw_ingredients_only();
                     $crud->field_type('stockTrans_ingredientID','dropdown',$ingredientsArray);
                 }
+                
+                //relation on ingredient ID mucks up the dropdown to exclude batch ingredients in 'add stock' screen
+                //$crud->set_relation('stockTrans_ingredientID', 'ingredients', 'ingredientName');
                 
                 $output = $crud->render();
                 $this->_example_output($output);
@@ -108,10 +111,10 @@ class Kitchendb extends CI_Controller {
     // BUG: need to change database column names for ingredients.id to ingredients.ingredients_id (to prevent conflict with recipes.id)
     public function get_raw_ingredients_only()
 	{
-        $query = $this->db->query("SELECT ingredients.id, ingredientName FROM ingredients left outer join recipes on recipes.recipes_ingredientID = ingredients.id where recipes.id is null");
+        $query = $this->db->query("SELECT ingredients.ingredients_id, ingredientName FROM ingredients left outer join recipes on recipes.recipes_ingredientID = ingredients.ingredients_id where recipes.recipes_id is null");
         $myarray = array();
         foreach ($query->result() as $row) {
-            $myarray[$row->id] = $row->ingredientName;
+            $myarray[$row->ingredients_id] = $row->ingredientName;
         }
         
         if(empty($myarray)) {
@@ -121,10 +124,15 @@ class Kitchendb extends CI_Controller {
         return $myarray;
 	}
     
+    public function _callback_IID_column($stockTransID, $row)
+    {
+        return $row->stockTrans_ingredientID;
+    }
+    
     public function _callback_ingredient_column($stockTransID, $row)
     {
-        $ingredientID = $row->stockTrans_ingredientID;
-        $query = $this->db->query("select ingredientName from ingredients where id='$ingredientID'");
+        $ingredientID = $row->IID;
+        $query = $this->db->query("select ingredientName from ingredients where ingredients.ingredients_id='$ingredientID'");
         $result = $query->row();
         return $result->ingredientName;
     }
@@ -132,10 +140,10 @@ class Kitchendb extends CI_Controller {
     public function _callback_stock_column($stockTransID, $row)
     {
         $batchid = $row->stockTrans_batchID;
-        $ingredientid = $row->stockTrans_ingredientID;
+        $ingredientID = $row->IID;
                
-        $created = $this->getStock($batchid, $ingredientid, "Created");
-        $used = $this->getStock($batchid, $ingredientid, "Used");
+        $created = $this->getStock($batchid, $ingredientID, "Created");
+        $used = $this->getStock($batchid, $ingredientID, "Used");
  
         foreach ($created as $uom => $val) {
             if(array_key_exists($uom, $used) && array_key_exists($uom, $created))
@@ -193,32 +201,32 @@ class Kitchendb extends CI_Controller {
 
     public function _callback_created_column($stockTransID, $row)
     {
-        $arrayUOM = $this->getStock($row->stockTrans_batchID, $row->stockTrans_ingredientID, "Created");
+        $arrayUOM = $this->getStock($row->stockTrans_batchID, $row->IID, "Created");
         return $this->formatUOM($arrayUOM);
     }
 
     public function _callback_used_column($stockTransID, $row)
     {
-        $arrayUOM = $this->getStock($row->stockTrans_batchID, $row->stockTrans_ingredientID, "Used");
+        $arrayUOM = $this->getStock($row->stockTrans_batchID, $row->IID, "Used");
         return $this->formatUOM($arrayUOM);
     }
 
     public function _callback_plannedcreated_column($stockTransID, $row)
     {
-        $arrayUOM = $this->getStock($row->stockTrans_batchID, $row->stockTrans_ingredientID, "Planned_Created");
+        $arrayUOM = $this->getStock($row->stockTrans_batchID, $row->IID, "Planned_Created");
         return $this->formatUOM($arrayUOM);
     }
     
     public function _callback_plannedused_column($stockTransID, $row)
     {
-        $arrayUOM = $this->getStock($row->stockTrans_batchID, $row->stockTrans_ingredientID, "Planned_Used");
+        $arrayUOM = $this->getStock($row->stockTrans_batchID, $row->IID, "Planned_Used");
         return $this->formatUOM($arrayUOM);
     }
 
     public function _callback_stockafterplan_column($stockTransID, $row)
     {
         $batchid = $row->stockTrans_batchID;
-        $ingredientid = $row->stockTrans_ingredientID;
+        $ingredientid = $row->IID;
 
         $created = $this->getStock($batchid, $ingredientid, "Created");
         $used = $this->getStock($batchid, $ingredientid, "Used");
@@ -314,17 +322,17 @@ class Kitchendb extends CI_Controller {
     public function _callback_recipe_column($batchID, $row)
     {
         $batch_recipeID = $row->batch_recipeID;
-        $query = $this->db->query("select recipeName from recipes where id='$batch_recipeID'");
+        $query = $this->db->query("select recipeName from recipes where recipes_id='$batch_recipeID'");
         $result = $query->row();
         return $result->recipeName;
     }
      
     public function get_recipe_details()
 	{
-        $query = $this->db->query("select id, recipeName, recipes_outputQuantity, recipes_outputUOM from recipes");
+        $query = $this->db->query("select recipes_id, recipeName, recipes_outputQuantity, recipes_outputUOM from recipes");
         $myarray = array();
         foreach ($query->result() as $row) {
-            $myarray[$row->id] = $row->recipeName." (".$row->recipes_outputQuantity . " " . $row->recipes_outputUOM ." per batch)";
+            $myarray[$row->recipes_id] = $row->recipeName." (".$row->recipes_outputQuantity . " " . $row->recipes_outputUOM ." per batch)";
         }
         
         if(empty($myarray)) {
@@ -366,7 +374,7 @@ class Kitchendb extends CI_Controller {
             }
             
             // find the ingredientID column of the relevant recipe
-            $query = $this->db->query("SELECT recipes_ingredientID, recipes_outputQuantity, recipes_outputUOM from recipes where recipes.id=$recipeID");
+            $query = $this->db->query("SELECT recipes_ingredientID, recipes_outputQuantity, recipes_outputUOM from recipes where recipes.recipes_id=$recipeID");
             $row = $query->row();
             $ingredientID = $row->recipes_ingredientID;
             $outputQty = $row->recipes_outputQuantity;
@@ -422,7 +430,7 @@ class Kitchendb extends CI_Controller {
         }
         
         // find the ingredientID column of the relevant recipe
-        $query = $this->db->query("SELECT recipes_ingredientID, recipes_outputQuantity, recipes_outputUOM from recipes where recipes.id=$recipeID");
+        $query = $this->db->query("SELECT recipes_ingredientID, recipes_outputQuantity, recipes_outputUOM from recipes where recipes.recipes_id=$recipeID");
         $row = $query->row();
         $ingredientID = $row->recipes_ingredientID;
         $outputQty = $row->recipes_outputQuantity;
