@@ -32,7 +32,7 @@ class Edit_batch_model2 extends grocery_CRUD_Model
 	 $this->db->select($select, false);
 	
     // ADD YOUR JOIN HERE for example: <------------------------------------------------------
-    $this->db->join('ingredients', $this->table_name . '.stockTrans_ingredientID = ingredients.id', 'LEFT');
+    $this->db->join('ingredients', $this->table_name . '.stockTrans_ingredientID = ingredients.ingredients_id', 'LEFT');
     $this->db->join('batch', 'stockTrans.stockTrans_batchID = batch.batch_ID', 'LEFT');
   
     $results = $this->db->get($this->table_name)->result();
@@ -72,7 +72,7 @@ class Edit_batch_model2 extends grocery_CRUD_Model
         // find all 'created' rows in stockTrans table for the relevant ingredientID
         $this->db->select('stockTrans_id, stockTrans_ingredientID, stockTrans_type, stockTrans_batchID, batch_batchCode, batch_ID, ingredients.ingredientName');
         $this->db->join('batch',$table.'.stockTrans_batchID = batch.batch_ID', 'LEFT');
-        $this->db->join('ingredients',$table.'.stockTrans_ingredientID = ingredients.id', 'LEFT');
+        $this->db->join('ingredients',$table.'.stockTrans_ingredientID = ingredients.ingredients_id', 'LEFT');
         $this->db->where('stockTrans_ingredientID',$ingredientid);
         $this->db->where('stockTrans_type','Created');
         $result = $this->db->get($table);
