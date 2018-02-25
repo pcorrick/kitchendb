@@ -50,46 +50,30 @@ class Kitchendb extends CI_Controller {
                 }
          }
 
-    public function stock()
+     // CRUD for managing ingredients (either adding purchased raw ingredients, or doing a stocktake
+     // purchase = add ingredient to existing stock
+     // stocktake = re-baseline the currently held ingredient quantity
+    public function manage()
     {
         try{
                 $crud = new grocery_CRUD();
                 $crud->set_theme('flexigrid');
-                //$crud->set_model('Stock_model');
                 $crud->set_table('stockTrans');
-                $crud->set_subject('Stock');
+                $crud->set_subject('Stocktake');
                 
-                $crud->set_relation('stockTrans_batchID', 'batch', 'batch_batchCode');
-                
-                $where = "stockTrans_type = 'Created' OR stockTrans_type = 'Planned_Created' group by stockTrans_batchID, stockTrans_ingredientID, stockTrans_type";
+                $where = "stockTrans_type = 'Stocktake' OR stockTrans_type = 'Purchase'";
                 $crud->where($where);
                 
-                // stockTrans_type field default = Created in mysql
-                $crud->add_fields('stockTrans_ingredientID','stockTrans_quantity', 'stockTrans_quantityUOM');
-                $crud->edit_fields('stockTrans_ingredientID','stockTrans_quantity');
-                
+                $crud->columns('IID','stockTrans_ingredientID','stockTrans_type', 'stockTrans_quantity', 'stockTrans_quantityUOM','stockTrans_date');
                 $crud->display_as('stockTrans_ingredientID','Ingredient');
-                $crud->display_as('stockTrans_quantity','Quantity');
-                $crud->display_as('stockTrans_batchID', 'Batch Code');
-                $crud->display_as('stockTrans_quantityUOM', 'Units');
-                
-                $crud->required_fields('stockTrans_ingredientID','stockTrans_quantity', 'stockTrans_quantityUOM');
-                
-                $crud->columns('IID','stockTrans_ingredientID','stockTrans_batchID', 'Created','Used', 'Current Stock', 'Planned Created', 'Planned Used', 'Stock After Plan');
-                
-                //$crud->field_type('IID', 'hidden');
                 
                 $crud->callback_column('IID', array($this, '_callback_IID_column'));
                 $crud->callback_column('stockTrans_ingredientID', array($this, '_callback_ingredient_column'));
-                $crud->callback_column('Created', array($this, '_callback_created_column'));
-                $crud->callback_column('Used', array($this, '_callback_used_column'));
-                $crud->callback_column('Current Stock', array($this, '_callback_stock_column'));
-                $crud->callback_column('Planned Created', array($this, '_callback_plannedcreated_column'));
-                $crud->callback_column('Planned Used', array($this, '_callback_plannedused_column'));
-                $crud->callback_column('Stock After Plan', array($this, '_callback_stockafterplan_column'));
-
+                
+                //$crud->set_relation('stockTrans_ingredientID', 'ingredients', 'ingredientName');
+                
                 $state = $crud->getState();
-                // if adding stock, customise the ingredients dropdown to exclude ingredients that should
+                // customise the ingredients dropdown to exclude ingredients that should
                 // be created by adding a new batch
                 if ($state == 'add' || $state == 'edit') {
                     $stateinfo = $crud->getStateInfo();
@@ -97,9 +81,37 @@ class Kitchendb extends CI_Controller {
                     $crud->field_type('stockTrans_ingredientID','dropdown',$ingredientsArray);
                 }
                 
-                //relation on ingredient ID mucks up the dropdown to exclude batch ingredients in 'add stock' screen
-                //$crud->set_relation('stockTrans_ingredientID', 'ingredients', 'ingredientName');
+                $output = $crud->render();
+                $this->_example_output($output);
+        }catch(Exception $e) {
+                show_error($e->getMessage().' --- '.$e->getTraceAsString());
+        }
+     }
+     
+    public function stock()
+    {
+        try{
+                $crud = new grocery_CRUD();
+                $crud->set_theme('flexigrid');
+                $crud->set_table('ingredients');
+                $crud->set_subject('Stock');
+                $crud->set_model('Stock_model');
                 
+
+                $crud->columns('ingredient_type', 'ingredientName', 'batch_batchCode', 'Last_Stocktake_Qty','Purchased_Since','Created_Since','Used_Since', 'Current_Stock', 'Planned Created', 'Planned Used', 'Stock After Plan');
+                
+                $crud->callback_column('ingredient_type', array($this, '_callback_ingredienttype_column'));
+                $crud->callback_column('Last_Stocktake_Qty', array($this, '_callback_stocktakeqty_column'));
+                $crud->callback_column('Purchased_Since', array($this, '_callback_purchasedsince_column'));
+                $crud->callback_column('Created_Since', array($this, '_callback_createdsince_column'));
+
+                $crud->callback_column('Used_Since', array($this, '_callback_usedsince_column'));
+                $crud->callback_column('Current_Stock', array($this, '_callback_currentstock_column'));
+                //$crud->callback_column('Planned Created', array($this, '_callback_plannedcreated_column'));
+                //$crud->callback_column('Planned Used', array($this, '_callback_plannedused_column'));
+                //$crud->callback_column('Stock After Plan', array($this, '_callback_stockafterplan_column'));
+
+               
                 $output = $crud->render();
                 $this->_example_output($output);
         }catch(Exception $e) {
@@ -107,8 +119,6 @@ class Kitchendb extends CI_Controller {
         }
      }
     
-    
-    // BUG: need to change database column names for ingredients.id to ingredients.ingredients_id (to prevent conflict with recipes.id)
     public function get_raw_ingredients_only()
 	{
         $query = $this->db->query("SELECT ingredients.ingredients_id, ingredientName FROM ingredients left outer join recipes on recipes.recipes_ingredientID = ingredients.ingredients_id where recipes.recipes_id is null");
@@ -128,7 +138,15 @@ class Kitchendb extends CI_Controller {
     {
         return $row->stockTrans_ingredientID;
     }
-    
+
+    public function _callback_ingredienttype_column($ingredientID, $row)
+    {
+        $query = $this->db->query("SELECT recipes.recipes_id FROM ingredients left outer join recipes on recipes.recipes_ingredientID = ingredients.ingredients_id where ingredients.ingredients_id = '$row->ingredients_id'");
+        $result = $query->row();   
+        if($result->recipes_id > 0) return 'Batch';
+        else return 'Raw';
+    }
+
     public function _callback_ingredient_column($stockTransID, $row)
     {
         $ingredientID = $row->IID;
@@ -136,102 +154,85 @@ class Kitchendb extends CI_Controller {
         $result = $query->row();
         return $result->ingredientName;
     }
-     
-    public function _callback_stock_column($stockTransID, $row)
+
+    public function _callback_stocktakeqty_column($ingredientID, $row)
     {
-        $batchid = $row->stockTrans_batchID;
-        $ingredientID = $row->IID;
-               
-        $created = $this->getStock($batchid, $ingredientID, "Created");
-        $used = $this->getStock($batchid, $ingredientID, "Used");
- 
-        foreach ($created as $uom => $val) {
-            if(array_key_exists($uom, $used) && array_key_exists($uom, $created))
-                $stock[$uom] = $created[$uom] - $used[$uom];
-        }
-        return $this->formatUOM($stock);
-    }
-     
-    public function formatUOM($arrayUOM) {
-        if($arrayUOM['g'] == 0 && $arrayUOM['kg'] == 0 && $arrayUOM['pieces'] == 0) {
-            return '0';
-        }
+        $data = $this->Stock_model->get_last_stocktake_data($row->ingredients_id);
         
-        if($arrayUOM['pieces'] > 0) {
-            return $arrayUOM['pieces'].' pieces';
-        }
-        
-        $arrayUOM['kg'] = $arrayUOM['kg'] + ($arrayUOM['g']/1000);
-        $arrayUOM['g'] = $arrayUOM['kg'] * 1000;
-        if($arrayUOM['kg'] < 1 && $arrayUOM['kg'] > -1){
-            return round($arrayUOM['g'],3).' g';
-        } else {
-            return round($arrayUOM['kg'],3).' kg';
-        }
-    }
-
-    public function getQtyArray($query) {
-        
-        $queryrow = $query->row();
-        $arrayUOM = array('g'=>0, 'kg'=>0, 'pieces'=>0);
-        if(isset($queryrow)) {
-            foreach($query->result() as $stockrow) {
-                $arrayUOM[$stockrow->qtyUOM] = (float)$stockrow->stock;
-            }
-        }
-
-        return $arrayUOM;
+        if($data == 0) return '-';
+        else return $this->Stock_model->formatUOM($data['arrayUOM']).' ('.$data['Date'].')';
     }
     
-    public function getStock($batchid, $ingredientid, $type) {
-        if(is_null($batchid) && ($type == 'Created' || $type == 'Planned_Created')) { // if the row is a raw ingredient, not created from a batch, batchid will be NULL (so don't group by batchid)
-            $query = $this->db->query("select sum(stockTrans_quantity) as stock, stockTrans_quantityUOM as qtyUOM from stockTrans where stockTrans_ingredientID = $ingredientid and stockTrans_type = '$type' group by stockTrans_ingredientID, stockTrans_quantityUOM");
-        }
-        if(!is_null($batchid) && ($type == 'Created' || $type == 'Planned_Created')) {
-            $query = $this->db->query("select sum(stockTrans_quantity) as stock, stockTrans_quantityUOM as qtyUOM from stockTrans where stockTrans_ingredientID = $ingredientid and stockTrans_type = '$type' and stockTrans_batchID = $batchid group by stockTrans_ingredientID, stockTrans_batchID, stockTrans_quantityUOM");
-        }
-        if(is_null($batchid) && ($type == 'Used' || $type == 'Planned_Used')) {
-            $query = $this->db->query("select sum(stockTrans_quantity) as stock, stockTrans_quantityUOM as qtyUOM from stockTrans where stockTrans_ingredientID = $ingredientid and stockTrans_type = '$type' group by stockTrans_ingredientID, stockTrans_quantityUOM");
-        }
-        if(!is_null($batchid) && ($type == 'Used' || $type == 'Planned_Used')) {
-            $query = $this->db->query("select sum(stockTrans_quantity) as stock, stockTrans_quantityUOM as qtyUOM from stockTrans where stockTrans_ingredientID = $ingredientid and stockTrans_type = '$type' and stockTrans_subBatchID = $batchid group by stockTrans_ingredientID, stockTrans_quantityUOM, stockTrans_subBatchID");
-        }
-        return $this->getQtyArray($query);
-    }
-
-    public function _callback_created_column($stockTransID, $row)
+    // ingredients created by cooking a batch are "Created"
+    // raw ingredients are noted as "Purchase"
+    public function _callback_purchasedsince_column($ingredientID, $row)
     {
-        $arrayUOM = $this->getStock($row->stockTrans_batchID, $row->IID, "Created");
-        return $this->formatUOM($arrayUOM);
+        $date = $this->Stock_model->get_last_stocktake_data($row->ingredients_id)['Date'];        
+        $purchaseArrayUOM = $this->Stock_model->get_stocktrans_since(null, $row->ingredients_id, $date, "Purchase");
+        
+        return $this->Stock_model->formatUOM($purchaseArrayUOM);
     }
-
-    public function _callback_used_column($stockTransID, $row)
+    
+    // ingredients created by cooking a batch are "Created"
+    // raw ingredients are noted as "Purchase"
+    public function _callback_createdsince_column($ingredientID, $row)
     {
-        $arrayUOM = $this->getStock($row->stockTrans_batchID, $row->IID, "Used");
-        return $this->formatUOM($arrayUOM);
+        $createdArrayUOM = $this->Stock_model->get_batch_created($row->batch_id);
+        return $this->Stock_model->formatUOM($createdArrayUOM);
     }
-
-    public function _callback_plannedcreated_column($stockTransID, $row)
+    
+    // current stock based on last stocktake quantity (or batch Created quantity)
+    // Calculate as:
+    // For raw ingredients:   last stocktake quantity + purchased since - used
+    // For batch ingredients: created - used
+    public function _callback_currentstock_column($ingredientID, $row)
+    {
+        $stocktakedata = $this->Stock_model->get_last_stocktake_data($row->ingredients_id);
+        $purchasedata = $this->Stock_model->get_stocktrans_since(null, $row->ingredients_id, $stocktakedata['Date'], "Purchase");
+        $createdata = $this->Stock_model->get_batch_created($row->batch_id);
+        $useddata = $this->Stock_model->get_stocktrans_since($row->batch_id, $row->ingredients_id, $stocktakedata['Date'], "Used");
+        
+        if($row->ingredient_type = "Raw") {
+            $result = $this->Stock_model->addArrayUOM($stocktakedata['arrayUOM'], $purchasedata, 1);
+            $result = $this->Stock_model->addArrayUOM($result, $useddata, -1);
+        } else {
+            $result = $this->Stock_model->addArrayUOM($createdata, $useddata, -1);
+        }
+        //if($result['kg'] > 0) var_dump($result);
+        return $this->Stock_model->formatUOM($result);
+    }
+    
+   
+    public function _callback_usedsince_column($ingr=ientID, $row)
+    {
+        $date = $this->Stock_model->get_last_stocktake_data($row->ingredients_id)['Date'];
+        $usedArrayUOM = $this->Stock_model->get_stocktrans_since($row->batch_id, $row->ingredients_id, $date, "Used");
+        
+        return $this->Stock_model->formatUOM($usedArrayUOM);
+    }
+    
+    public function _callback_plannedcreated_column($ingredientID, $row)
     {
         $arrayUOM = $this->getStock($row->stockTrans_batchID, $row->IID, "Planned_Created");
         return $this->formatUOM($arrayUOM);
     }
     
-    public function _callback_plannedused_column($stockTransID, $row)
+    public function _callback_plannedused_column($ingredientID, $row)
     {
         $arrayUOM = $this->getStock($row->stockTrans_batchID, $row->IID, "Planned_Used");
         return $this->formatUOM($arrayUOM);
     }
 
-    public function _callback_stockafterplan_column($stockTransID, $row)
+    public function _callback_stockafterplan_column($ingredientID, $row)
     {
         $batchid = $row->stockTrans_batchID;
-        $ingredientid = $row->IID;
+        //$ingredientID = $row->ingredients_id;
+        $ingredientID = $row->IID;
 
-        $created = $this->getStock($batchid, $ingredientid, "Created");
-        $used = $this->getStock($batchid, $ingredientid, "Used");
-        $planned_created = $this->getStock($batchid, $ingredientid, "Planned_Created");
-        $planned_used = $this->getStock($batchid, $ingredientid, "Planned_Used");
+        $created = $this->getStock($batchid, $ingredientID, "Created");
+        $used = $this->getStock($batchid, $ingredientID, "Used");
+        $planned_created = $this->getStock($batchid, $ingredientID, "Planned_Created");
+        $planned_used = $this->getStock($batchid, $ingredientID, "Planned_Used");
 
         foreach ($created as $uom => $val) {
             $stockafterplan[$uom] = $created[$uom] + $planned_created[$uom] - $used[$uom] - $planned_used[$uom];
@@ -358,12 +359,13 @@ class Kitchendb extends CI_Controller {
             return $post_array;
      }
     
-     // callback after insert for the batch function
+     // callback after insert for the batch function, to insert data into stockTrans table
      function _add_stock_transaction_callback($post_array, $primary_key) {
 
             $recipeID = $post_array['batch_recipeID'];
             $batchQty = $post_array['batch_quantity'];
             $batchPlanned = $post_array['batch_planned'];
+            $batchDate = $post_array['batch_cookDate'];
             
             if($batchPlanned == True) {
                 $created = "Planned_Created";
@@ -383,7 +385,7 @@ class Kitchendb extends CI_Controller {
             //if the ingredientID is not null (i.e. this batch is an ingredient, so need to add it to stock)
             if(!(is_null($ingredientID))) {
                 $qtyCreated = $outputQty * $batchQty;
-                $queryStr = "INSERT into stockTrans (stockTrans_ingredientID, stockTrans_batchID, stockTrans_type, stockTrans_quantity, stockTrans_quantityUOM) VALUES ($ingredientID, $primary_key, '$created', $qtyCreated, '$outputUOM')";
+                $queryStr = "INSERT into stockTrans (stockTrans_ingredientID, stockTrans_batchID, stockTrans_type, stockTrans_quantity, stockTrans_quantityUOM, stockTrans_date) VALUES ($ingredientID, $primary_key, '$created', $qtyCreated, '$outputUOM', '$batchDate')";
                 $this->db->query($queryStr);
             }
             
@@ -394,7 +396,7 @@ class Kitchendb extends CI_Controller {
                 $ingredientID = $row->ingredientID;
                 $qty = $batchQty * $row->quantity;
                 $uom = $row->recipeUnits;
-                $queryStr = "INSERT into stockTrans (stockTrans_ingredientID, stockTrans_batchID, stockTrans_type, stockTrans_quantity, stockTrans_quantityUOM) VALUES ($ingredientID, $primary_key, '$used', $qty, '$uom')";
+                $queryStr = "INSERT into stockTrans (stockTrans_ingredientID, stockTrans_batchID, stockTrans_type, stockTrans_quantity, stockTrans_quantityUOM, stockTrans_date) VALUES ($ingredientID, $primary_key, '$used', $qty, '$uom', '$batchDate')";
                 $this->db->query($queryStr);
             }
             return $post_array;
@@ -420,6 +422,7 @@ class Kitchendb extends CI_Controller {
         $recipeID = $post_array['batch_recipeID'];
         $batchQty = $post_array['batch_quantity'];
         $planned = $post_array['batch_planned'];
+        $batchDate = $post_array['batch_cookDate'];
 
         if($planned == True) {
             $created = "Planned_Created";
@@ -439,7 +442,7 @@ class Kitchendb extends CI_Controller {
         //if the ingredientID is not null (i.e. this batch is an ingredient, so need to add it to stock)
         if(!(is_null($ingredientID))) {
             $qtyCreated = $outputQty * $batchQty;
-            $queryStr = "UPDATE stockTrans SET stockTrans_quantity = $qtyCreated, stockTrans_quantityUOM = '$outputUOM', stockTrans_type = '$created' WHERE stockTrans_batchID = $primary_key and stockTrans_type like '%Created%' and stockTrans_ingredientID = $ingredientID";
+            $queryStr = "UPDATE stockTrans SET stockTrans_quantity = $qtyCreated, stockTrans_quantityUOM = '$outputUOM', stockTrans_type = '$created', stockTrans_date = '$batchDate' WHERE stockTrans_batchID = $primary_key and stockTrans_type like '%Created%' and stockTrans_ingredientID = $ingredientID";
             $this->db->query($queryStr);
         }
             
@@ -450,7 +453,7 @@ class Kitchendb extends CI_Controller {
             $ingredientID = $row->ingredientID;
             $qty = $batchQty * $row->quantity;
             $uom = $row->recipeUnits;
-            $queryStr = "UPDATE stockTrans SET stockTrans_quantity = $qty, stockTrans_quantityUOM = '$uom', stockTrans_type = '$used' WHERE stockTrans_ingredientID = $ingredientID and stockTrans_batchID = $primary_key and stockTrans_type like '%Used%'";
+            $queryStr = "UPDATE stockTrans SET stockTrans_quantity = $qty, stockTrans_quantityUOM = '$uom', stockTrans_type = '$used', stockTrans_date = '$batchDate' WHERE stockTrans_ingredientID = $ingredientID and stockTrans_batchID = $primary_key and stockTrans_type like '%Used%'";
             $this->db->query($queryStr);
         }
         
@@ -559,16 +562,15 @@ class Kitchendb extends CI_Controller {
 		return $value.' &euro;';
 	}
 
+    // grocery_crud config must be sql-date
     public function create_batch_code($cookdate) {
         
-        $date_array = explode('/', $cookdate);
+        $date_array = explode('-', $cookdate);
         
-        $y = substr($date_array[2], -2);
+        $y = substr($date_array[0], -2);
         $m = sprintf("%02d", $date_array[1]);
-        $d = sprintf("%02d", $date_array[0]);
+        $d = sprintf("%02d", $date_array[2]);
 
-        $mysqldate = $date_array[2].$m.$d;
-        
         $months = array("01" => "A",
                         "02" => "B",
                         "03" => "C",
@@ -583,7 +585,7 @@ class Kitchendb extends CI_Controller {
                         "12" => "L");        
 
         //calculate the batch sequence for the day
-        $query = $this->db->query("SELECT count(batch_cookDate) as numBatches from batch where batch_cookDate=$mysqldate and batch_batchCode != 'Planned' group by batch_cookDate");
+        $query = $this->db->query("SELECT count(batch_cookDate) as numBatches from batch where batch_cookDate=$cookdate and batch_batchCode != 'Planned' group by batch_cookDate");
         $row = $query->row();
         $count = $row->numBatches + 1;
         

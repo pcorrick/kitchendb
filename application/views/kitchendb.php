@@ -15,6 +15,7 @@ foreach($css_files as $file): ?>
 	<div>
  		<a href='<?php echo site_url('kitchendb/ingredients')?>'>Ingredients</a> |
         <a href='<?php echo site_url('kitchendb/stock')?>'>Stock</a> |
+        <a href='<?php echo site_url('kitchendb/manage')?>'>Manage Raw Ingredients</a> |
         <a href='<?php echo site_url('kitchendb/recipes')?>'>Recipes</a> |
         <a href='<?php echo site_url('kitchendb/batch')?>'>Batches</a> |
         <a href='<?php echo site_url('kitchendb/temperatures')?>'>Temperature Records</a> |
