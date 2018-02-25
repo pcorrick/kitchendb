@@ -11,7 +11,7 @@ class Stock_model extends grocery_CRUD_Model
    
   // ADD YOUR SELECT FROM JOIN HERE <------------------------------------------------------
   // for example $select .= ", user_log.created_date, user_log.update_date";
-  $select .= ", ingredients.*, batch.*";
+  $select .= ", batch.*";
  
 	 if(!empty($this->relation))
 	  foreach($this->relation as $relation)
@@ -35,16 +35,19 @@ class Stock_model extends grocery_CRUD_Model
     $this->db->join('recipes',$this->table_name . '.ingredients_id = recipes.recipes_ingredientID', 'LEFT');
     $this->db->join('batch','batch.batch_recipeID = recipes.recipes_id', 'LEFT');
   
+    $this->db->where('recipes_ingredientID IS NULL OR (recipes_ingredientID > 0 AND batch_batchCode IS NOT NULL)');
+  
     $this->db->group_by('ingredients.ingredients_id');
     $this->db->group_by('batch.batch_id');
     
+    $this->db->order_by('batch_batchCode', 'asc');
     $this->db->order_by('ingredientName', 'asc');
 
     $results = $this->db->get($this->table_name)->result();
 	
 	 return $results;
     }
-    
+
     public function get_last_stocktake_data($ingredientid)
     {
         $query = $this->db->query("select stockTrans_date, stockTrans_quantity as qty, stockTrans_quantityUOM as qtyUOM from stockTrans where stockTrans_ingredientID='$ingredientid' and stockTrans_type='Stocktake' order by stockTrans_date desc");
@@ -89,21 +92,33 @@ class Stock_model extends grocery_CRUD_Model
     }
 
     // format a key->value array of quantities into a single rounded unit
+    // text colour red for < 0, black for >= 0
     public function formatUOM($arrayUOM) {
         if($arrayUOM['g'] == 0 && $arrayUOM['kg'] == 0 && $arrayUOM['pieces'] == 0) {
             return '0';
         }
         
-        if($arrayUOM['pieces'] > 0 || $arrayUOM['pieces'] < 0) {
+        if($arrayUOM['pieces'] > 0) {
             return $arrayUOM['pieces'].' pieces';
+        }
+        
+        if($arrayUOM['pieces'] < 0) {
+            return '<font color="red">'.$arrayUOM['pieces'].' pieces<font>';
         }
         
         $arrayUOM['kg'] = $arrayUOM['kg'] + ($arrayUOM['g']/1000);
         $arrayUOM['g'] = $arrayUOM['kg'] * 1000;
-        if($arrayUOM['kg'] < 1 && $arrayUOM['kg'] > -1){
+        if($arrayUOM['kg'] < 1 && $arrayUOM['kg'] >= 0){
             return round($arrayUOM['g'],3).' g';
-        } else {
+        }
+        if($arrayUOM['kg'] < 0 && $arrayUOM['kg'] > -1){
+            return '<font color="red">'.round($arrayUOM['g'],3).' g<font>';
+        }
+        if($arrayUOM['kg'] >= 1){
             return round($arrayUOM['kg'],3).' kg';
+        }
+        if($arrayUOM['kg'] <= -1){
+            return '<font color="red">'.round($arrayUOM['kg'],3).' kg<font>';
         }
     }
     

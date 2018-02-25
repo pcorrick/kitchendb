@@ -43,6 +43,7 @@ class Kitchendb extends CI_Controller {
                         $crud->set_subject('Ingredients');
                         $crud->columns(array('ingredientName'));
                         $crud->display_as('ingredientName','Ingredient');
+                        $this->db->order_by('ingredientName', 'asc');
                         $output = $crud->render();
                         $this->_example_output($output);
                 }catch(Exception $e) {
@@ -88,36 +89,18 @@ class Kitchendb extends CI_Controller {
         }
      }
      
-    public function stock()
+    public function _callback_IID_column($stockTransID, $row)
     {
-        try{
-                $crud = new grocery_CRUD();
-                $crud->set_theme('flexigrid');
-                $crud->set_table('ingredients');
-                $crud->set_subject('Stock');
-                $crud->set_model('Stock_model');
-                
-
-                $crud->columns('ingredient_type', 'ingredientName', 'batch_batchCode', 'Last_Stocktake_Qty','Purchased_Since','Created_Since','Used_Since', 'Current_Stock', 'Planned Created', 'Planned Used', 'Stock After Plan');
-                
-                $crud->callback_column('ingredient_type', array($this, '_callback_ingredienttype_column'));
-                $crud->callback_column('Last_Stocktake_Qty', array($this, '_callback_stocktakeqty_column'));
-                $crud->callback_column('Purchased_Since', array($this, '_callback_purchasedsince_column'));
-                $crud->callback_column('Created_Since', array($this, '_callback_createdsince_column'));
-
-                $crud->callback_column('Used_Since', array($this, '_callback_usedsince_column'));
-                $crud->callback_column('Current_Stock', array($this, '_callback_currentstock_column'));
-                //$crud->callback_column('Planned Created', array($this, '_callback_plannedcreated_column'));
-                //$crud->callback_column('Planned Used', array($this, '_callback_plannedused_column'));
-                //$crud->callback_column('Stock After Plan', array($this, '_callback_stockafterplan_column'));
-
-               
-                $output = $crud->render();
-                $this->_example_output($output);
-        }catch(Exception $e) {
-                show_error($e->getMessage().' --- '.$e->getTraceAsString());
-        }
-     }
+        return $row->stockTrans_ingredientID;
+    }
+    
+    public function _callback_ingredient_column($stockTransID, $row)
+    {
+        $ingredientID = $row->IID;
+        $query = $this->db->query("select ingredientName from ingredients where ingredients.ingredients_id='$ingredientID'");
+        $result = $query->row();
+        return $result->ingredientName;
+    }
     
     public function get_raw_ingredients_only()
 	{
@@ -133,26 +116,47 @@ class Kitchendb extends CI_Controller {
 
         return $myarray;
 	}
-    
-    public function _callback_IID_column($stockTransID, $row)
+     
+    public function stock()
     {
-        return $row->stockTrans_ingredientID;
-    }
+        try{
+                $crud = new grocery_CRUD();
+                $crud->set_theme('flexigrid');
+                $crud->set_table('ingredients');
+                $crud->set_subject('Stock');
+                $crud->set_model('Stock_model');
 
+                $crud->columns('ingredient_type', 'ingredientName', 'batch_batchCode', 'Last_Stocktake_Qty','Purchased_Since','Created_Since','Used_Since', 'Current_Stock');
+                
+                $crud->callback_column('ingredient_type', array($this, '_callback_ingredienttype_column'));
+                $crud->callback_column('Last_Stocktake_Qty', array($this, '_callback_stocktakeqty_column'));
+                $crud->callback_column('Purchased_Since', array($this, '_callback_purchasedsince_column'));
+                $crud->callback_column('Created_Since', array($this, '_callback_createdsince_column'));
+
+                $crud->callback_column('Used_Since', array($this, '_callback_usedsince_column'));
+                $crud->callback_column('Current_Stock', array($this, '_callback_currentstock_column'));
+                //$crud->callback_column('Planned Created', array($this, '_callback_plannedcreated_column'));
+                //$crud->callback_column('Planned Used', array($this, '_callback_plannedused_column'));
+                //$crud->callback_column('Stock After Plan', array($this, '_callback_stockafterplan_column'));
+
+                $crud->unset_add();
+                $crud->unset_edit();
+                $crud->unset_delete();
+                $crud->unset_read();
+               
+                $output = $crud->render();
+                $this->_example_output($output);
+        }catch(Exception $e) {
+                show_error($e->getMessage().' --- '.$e->getTraceAsString());
+        }
+     }
+    
     public function _callback_ingredienttype_column($ingredientID, $row)
     {
         $query = $this->db->query("SELECT recipes_id FROM ingredients left outer join recipes on recipes.recipes_ingredientID = ingredients.ingredients_id where ingredients.ingredients_id = '$row->ingredients_id'");
         $result = $query->row();   
         if($result->recipes_id > 0) return 'Batch';
         else return 'Raw';
-    }
-
-    public function _callback_ingredient_column($stockTransID, $row)
-    {
-        $ingredientID = $row->IID;
-        $query = $this->db->query("select ingredientName from ingredients where ingredients.ingredients_id='$ingredientID'");
-        $result = $query->row();
-        return $result->ingredientName;
     }
 
     public function _callback_stocktakeqty_column($ingredientID, $row)
@@ -181,6 +185,14 @@ class Kitchendb extends CI_Controller {
         return $this->Stock_model->formatUOM($createdArrayUOM);
     }
     
+    public function _callback_usedsince_column($ingredientID, $row)
+    {
+        $date = $this->Stock_model->get_last_stocktake_data($row->ingredients_id)['Date'];
+        $usedArrayUOM = $this->Stock_model->get_stocktrans_since($row->batch_id, $row->ingredients_id, $date, "Used");
+        
+        return $this->Stock_model->formatUOM($usedArrayUOM);
+    }
+    
     // current stock based on last stocktake quantity (or batch Created quantity)
     // Calculate as:
     // For raw ingredients:   last stocktake quantity + purchased since - used
@@ -202,15 +214,7 @@ class Kitchendb extends CI_Controller {
         return $this->Stock_model->formatUOM($result);
     }
     
-   
-    public function _callback_usedsince_column($ingr=ientID, $row)
-    {
-        $date = $this->Stock_model->get_last_stocktake_data($row->ingredients_id)['Date'];
-        $usedArrayUOM = $this->Stock_model->get_stocktrans_since($row->batch_id, $row->ingredients_id, $date, "Used");
-        
-        return $this->Stock_model->formatUOM($usedArrayUOM);
-    }
-    
+    /*
     public function _callback_plannedcreated_column($ingredientID, $row)
     {
         $arrayUOM = $this->getStock($row->stockTrans_batchID, $row->IID, "Planned_Created");
@@ -239,7 +243,8 @@ class Kitchendb extends CI_Controller {
         }
         
         return $this->formatUOM($stockafterplan);
-    }    
+    }
+    */
 
     public function recipes()
     {
