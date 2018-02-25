@@ -141,7 +141,7 @@ class Kitchendb extends CI_Controller {
 
     public function _callback_ingredienttype_column($ingredientID, $row)
     {
-        $query = $this->db->query("SELECT recipes.recipes_id FROM ingredients left outer join recipes on recipes.recipes_ingredientID = ingredients.ingredients_id where ingredients.ingredients_id = '$row->ingredients_id'");
+        $query = $this->db->query("SELECT recipes_id FROM ingredients left outer join recipes on recipes.recipes_ingredientID = ingredients.ingredients_id where ingredients.ingredients_id = '$row->ingredients_id'");
         $result = $query->row();   
         if($result->recipes_id > 0) return 'Batch';
         else return 'Raw';
@@ -192,13 +192,13 @@ class Kitchendb extends CI_Controller {
         $createdata = $this->Stock_model->get_batch_created($row->batch_id);
         $useddata = $this->Stock_model->get_stocktrans_since($row->batch_id, $row->ingredients_id, $stocktakedata['Date'], "Used");
         
-        if($row->ingredient_type = "Raw") {
+        if($row->ingredient_type == "Raw") {
             $result = $this->Stock_model->addArrayUOM($stocktakedata['arrayUOM'], $purchasedata, 1);
             $result = $this->Stock_model->addArrayUOM($result, $useddata, -1);
         } else {
             $result = $this->Stock_model->addArrayUOM($createdata, $useddata, -1);
         }
-        //if($result['kg'] > 0) var_dump($result);
+        //if($result['pieces'] > 0) var_dump($result);
         return $this->Stock_model->formatUOM($result);
     }
     

@@ -79,7 +79,7 @@ class Stock_model extends grocery_CRUD_Model
     //return a key->value array of quantities
     public function getQtyArray($query) {
         $queryrow = $query->row();
-        $arrayUOM = array('g'=>0, 'kg'=>0, 'pieces'=>0);
+        $arrayUOM = array('g'=>(float)0, 'kg'=>(float)0, 'pieces'=>(float)0);
         if(isset($queryrow)) {
             foreach($query->result() as $row) {
                 $arrayUOM[$row->qtyUOM] = (float)$row->qty;
@@ -94,7 +94,7 @@ class Stock_model extends grocery_CRUD_Model
             return '0';
         }
         
-        if($arrayUOM['pieces'] > 0) {
+        if($arrayUOM['pieces'] > 0 || $arrayUOM['pieces'] < 0) {
             return $arrayUOM['pieces'].' pieces';
         }
         
@@ -111,8 +111,9 @@ class Stock_model extends grocery_CRUD_Model
     // return arrayUOM of the result
     public function addArrayUOM($array1, $array2, $sign) {
         foreach ($array1 as $uom => $val) {
-            if(array_key_exists($uom, $array1) && array_key_exists($uom, $array2))
+            if(array_key_exists($uom, $array1) && array_key_exists($uom, $array2)) {
                 $result[$uom] = $array1[$uom] + $sign*$array2[$uom];
+            }
         }
         return $result;
     }
