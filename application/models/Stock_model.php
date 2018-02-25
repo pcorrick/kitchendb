@@ -54,7 +54,7 @@ class Stock_model extends grocery_CRUD_Model
         $arrayUOM = $this->getQtyArray($query);
         $result = $query->row();
         if(isset($result)) return array("Date"=>$result->stockTrans_date,"arrayUOM"=>$arrayUOM);
-        else return array("Date"=>0,"arrayUOM"=>$arrayUOM);
+        else return array("Date"=>'0',"arrayUOM"=>$arrayUOM);
     }    
     
     // $type = Created, Purchase, Used, Planned Created, Planned Used

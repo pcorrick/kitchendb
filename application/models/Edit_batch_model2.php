@@ -33,7 +33,10 @@ class Edit_batch_model2 extends grocery_CRUD_Model
 	
     // ADD YOUR JOIN HERE for example: <------------------------------------------------------
     $this->db->join('ingredients', $this->table_name . '.stockTrans_ingredientID = ingredients.ingredients_id', 'LEFT');
-    $this->db->join('batch', 'stockTrans.stockTrans_batchID = batch.batch_ID', 'LEFT');
+    $this->db->join('batch', $this->table_name . '.stockTrans_batchID = batch.batch_ID', 'LEFT');
+    $this->db->join('recipes', 'ingredients.ingredients_id = recipes.recipes_ingredientID', 'LEFT');
+  
+    $this->db->where('recipes.recipes_id IS NOT NULL');
   
     $results = $this->db->get($this->table_name)->result();
         

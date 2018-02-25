@@ -60,18 +60,24 @@ class Kitchendb extends CI_Controller {
                 $crud = new grocery_CRUD();
                 $crud->set_theme('flexigrid');
                 $crud->set_table('stockTrans');
-                $crud->set_subject('Stocktake');
+                $crud->set_subject('Purchase or Stocktake Quantity');
                 
                 $where = "stockTrans_type = 'Stocktake' OR stockTrans_type = 'Purchase'";
                 $crud->where($where);
                 
-                $crud->columns('IID','stockTrans_ingredientID','stockTrans_type', 'stockTrans_quantity', 'stockTrans_quantityUOM','stockTrans_date');
-                $crud->display_as('stockTrans_ingredientID','Ingredient');
+                $crud->columns('stockTrans_ingredientID','stockTrans_type', 'stockTrans_quantity', 'stockTrans_quantityUOM','stockTrans_date');
+                $crud->add_fields('stockTrans_ingredientID', 'stockTrans_type', 'stockTrans_quantity', 'stockTrans_quantityUOM', 'stockTrans_date');
+                $crud->edit_fields('stockTrans_ingredientID', 'stockTrans_type', 'stockTrans_quantity', 'stockTrans_quantityUOM', 'stockTrans_date');
                 
-                $crud->callback_column('IID', array($this, '_callback_IID_column'));
+                $crud->display_as('stockTrans_ingredientID','Ingredient');
+                $crud->display_as('stockTrans_type','Transaction Type');
+                $crud->display_as('stockTrans_quantity','Quantity');
+                $crud->display_as('stockTrans_quantityUOM','Units');
+                $crud->display_as('stockTrans_date','Transaction Date');
+                
                 $crud->callback_column('stockTrans_ingredientID', array($this, '_callback_ingredient_column'));
                 
-                //$crud->set_relation('stockTrans_ingredientID', 'ingredients', 'ingredientName');
+                $crud->field_type('stockTrans_type','enum',array('Purchase','Stocktake'));
                 
                 $state = $crud->getState();
                 // customise the ingredients dropdown to exclude ingredients that should
@@ -88,15 +94,10 @@ class Kitchendb extends CI_Controller {
                 show_error($e->getMessage().' --- '.$e->getTraceAsString());
         }
      }
-     
-    public function _callback_IID_column($stockTransID, $row)
-    {
-        return $row->stockTrans_ingredientID;
-    }
-    
+
     public function _callback_ingredient_column($stockTransID, $row)
     {
-        $ingredientID = $row->IID;
+        $ingredientID = $row->stockTrans_ingredientID;
         $query = $this->db->query("select ingredientName from ingredients where ingredients.ingredients_id='$ingredientID'");
         $result = $query->row();
         return $result->ingredientName;
@@ -104,7 +105,7 @@ class Kitchendb extends CI_Controller {
     
     public function get_raw_ingredients_only()
 	{
-        $query = $this->db->query("SELECT ingredients.ingredients_id, ingredientName FROM ingredients left outer join recipes on recipes.recipes_ingredientID = ingredients.ingredients_id where recipes.recipes_id is null");
+        $query = $this->db->query("SELECT ingredients.ingredients_id, ingredientName FROM ingredients left outer join recipes on recipes.recipes_ingredientID = ingredients.ingredients_id where recipes.recipes_id is null order by ingredients.ingredientName asc");
         $myarray = array();
         foreach ($query->result() as $row) {
             $myarray[$row->ingredients_id] = $row->ingredientName;
@@ -126,19 +127,21 @@ class Kitchendb extends CI_Controller {
                 $crud->set_subject('Stock');
                 $crud->set_model('Stock_model');
 
-                $crud->columns('ingredient_type', 'ingredientName', 'batch_batchCode', 'Last_Stocktake_Qty','Purchased_Since','Created_Since','Used_Since', 'Current_Stock');
+                $crud->columns('ingredient_type', 'ingredientName', 'batch_batchCode', 'Last_Stocktake_Qty','Purchased','Created','Used', 'Current_Stock');
                 
                 $crud->callback_column('ingredient_type', array($this, '_callback_ingredienttype_column'));
                 $crud->callback_column('Last_Stocktake_Qty', array($this, '_callback_stocktakeqty_column'));
-                $crud->callback_column('Purchased_Since', array($this, '_callback_purchasedsince_column'));
-                $crud->callback_column('Created_Since', array($this, '_callback_createdsince_column'));
-
-                $crud->callback_column('Used_Since', array($this, '_callback_usedsince_column'));
+                $crud->callback_column('Purchased', array($this, '_callback_purchasedsince_column'));
+                $crud->callback_column('Created', array($this, '_callback_createdsince_column'));
+                $crud->callback_column('Used', array($this, '_callback_usedsince_column'));
                 $crud->callback_column('Current_Stock', array($this, '_callback_currentstock_column'));
                 //$crud->callback_column('Planned Created', array($this, '_callback_plannedcreated_column'));
                 //$crud->callback_column('Planned Used', array($this, '_callback_plannedused_column'));
                 //$crud->callback_column('Stock After Plan', array($this, '_callback_stockafterplan_column'));
 
+                $crud->display_as('ingredientName','Ingredient');
+                $crud->display_as('batch_batchCode','Batch Code');
+                
                 $crud->unset_add();
                 $crud->unset_edit();
                 $crud->unset_delete();
@@ -488,7 +491,7 @@ class Kitchendb extends CI_Controller {
                     $crud->display_as('ingredientID', 'Ingredient');
                     $crud->display_as('recipeUnits', 'Unit of Measure');
                     
-                    $crud->callback_edit_field('recipeID',array($this,'edit_field_callback_1'));
+                    $crud->callback_edit_field('recipeID',array($this,'edit_field_readonly_callback'));
                     $output = $crud->render();
                     $this->_example_output($output);
             }catch(Exception $e) {
@@ -500,7 +503,6 @@ class Kitchendb extends CI_Controller {
     {
             try{
                     $crud = new grocery_CRUD();
-                    //$crud->set_theme('datatables');
                     
                     $crud->set_model('Edit_batch_model2');
                     
@@ -513,6 +515,13 @@ class Kitchendb extends CI_Controller {
                     $crud->display_as('stockTrans_ingredientID', 'Ingredient');
                     $crud->display_as('stockTrans_quantity', 'Quantity');
 
+                    
+                    $crud->unset_add();
+                    $crud->unset_delete();
+                    
+                    $crud->edit_fields('stockTrans_ingredientID', 'stockTrans_subBatchID');
+                    $crud->callback_edit_field('stockTrans_ingredientID',array($this,'edit_field_readonly_callback'));
+                    
                     $crud->callback_column('Ingredient Batch', array($this, '_callback_ingredientbatch_column'));
                     
                     $state = $crud->getState();
@@ -557,15 +566,11 @@ class Kitchendb extends CI_Controller {
         }
     }
      
-    function edit_field_callback_1($value, $primary_key)
+    function edit_field_readonly_callback($value, $primary_key)
     {
-        return '<input type="text" value="'.$value.'" name="recipeID" readonly>';
+        return '<input type="text" value="'.$value.'" readonly>';
     }
-         
-	public function valueToEuro($value, $row)
-	{
-		return $value.' &euro;';
-	}
+
 
     // grocery_crud config must be sql-date
     public function create_batch_code($cookdate) {
