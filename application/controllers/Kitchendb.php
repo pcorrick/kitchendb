@@ -594,8 +594,9 @@ class Kitchendb extends CI_Controller {
                         "11" => "K",
                         "12" => "L");        
 
-        //calculate the batch sequence for the day
-        $query = $this->db->query("SELECT count(batch_cookDate) as numBatches from batch where batch_cookDate=$cookdate and batch_batchCode != 'Planned' group by batch_cookDate");
+        // calculate the batch sequence for the day
+        // + 1 to the count as this batch has not yet been entered
+        $query = $this->db->query("SELECT count(batch_cookDate) as numBatches from batch where batch_cookDate='$cookdate' and batch_batchCode != 'Planned' group by batch_cookDate");
         $row = $query->row();
         $count = $row->numBatches + 1;
         
@@ -603,6 +604,36 @@ class Kitchendb extends CI_Controller {
         return $batchCode;
     }
 
+    // show table of created products (batches that aren't used in other recipes)
+    public function products()
+    {
+            try{
+                    $crud = new grocery_CRUD();
+                    
+                    $crud->set_table('batch');
+                    
+                    $crud->set_relation('batch_recipeID', 'recipes', 'recipeName');
+                    $crud->where('recipes_ingredientID IS NULL');
+                    
+                    $crud->columns('batch_batchCode', 'batch_recipeID','batch_cookDate','Quantity');
+                    
+                    $crud->callback_column('Quantity', array($this, '_callback_productquantity_column'));
+                    
+                    $output = $crud->render();
+                    $this->_example_output($output);
+                    
+            }catch(Exception $e) {
+                    show_error($e->getMessage().' --- '.$e->getTraceAsString());
+            }
+     }
+    
+    public function _callback_productquantity_column($batchID, $row)
+    {
+        $query = $this->db->query("select batch_quantity, recipes_outputQuantity, recipes_outputUOM from batch join recipes on batch.batch_recipeID = recipes.recipes_id where batch_batchCode = '$row->batch_batchCode'");
+        $result = $query->row();   
+        return $result->batch_quantity * $result->recipes_outputQuantity;
+    }
+    
     public function temperatures()
     {
             try{
