@@ -50,7 +50,7 @@ class Stock_model extends grocery_CRUD_Model
 
     public function get_last_stocktake_data($ingredientid)
     {
-        $query = $this->db->query("select stockTrans_date, stockTrans_quantity as qty, stockTrans_quantityUOM as qtyUOM from stockTrans where stockTrans_ingredientID='$ingredientid' and stockTrans_type='Stocktake' order by stockTrans_date desc");
+        $query = $this->db->query("select stockTrans_date, stockTrans_quantity as qty, stockTrans_quantityUOM as qtyUOM from stockTrans where stockTrans_ingredientID='$ingredientid' and stockTrans_type='Stocktake' order by stockTrans_date desc limit 1");
         $arrayUOM = $this->getQtyArray($query);
         $result = $query->row();
         if(isset($result)) return array("Date"=>$result->stockTrans_date,"arrayUOM"=>$arrayUOM);
